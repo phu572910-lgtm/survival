@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rừng Đêm Sinh Tồn - Web Survival</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 3px solid #333;
+            background-color: #142814; /* Màu xanh rừng tối */
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = 800;
+    canvas.height = 600;
+
+    // Trạng thái game
+    let score = 0;
+    let hp = 100;
+    let gameOver = false;
+    const keys = {};
+
+    // 1. Đối tượng Người chơi
+    const player = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        size: 40,
+        speed: 5,
+        color: "#0064ff" // Blue
+    };
+
+    // 2. Kẻ địch (Quái vật)
+    let enemies = [];
+    for (let i = 0; i < 5; i++) {
+        enemies.push(createEnemy());
+    }
+
+    function createEnemy() {
+        return {
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: 30,
+            speed: 1.5 + Math.random() * 2,
+            color: "#c80000" // Red
+        };
+    }
+
+    // 3. Vật phẩm (Thức ăn)
+    let foods = [];
+    for (let i = 0; i < 3; i++) {
+        foods.push(createFood());
+    }
+
+    function createFood() {
+        return {
+            x: 20 + Math.random() * (canvas.width - 40),
+            y: 20 + Math.random() * (canvas.height - 40),
+            size: 15,
+            color: "#00c800" // Green
+        };
+    }
+
+    // Xử lý phím bấm
+    window.addEventListener("keydown", e => keys[e.code] = true);
+    window.addEventListener("keyup", e => keys[e.code] = false);
+
+    function update() {
+        if (gameOver) return;
+
+        // Di chuyển người chơi
+        if ((keys['ArrowLeft'] || keys['KeyA']) && player.x > 0) player.x -= player.speed;
+        if ((keys['ArrowRight'] || keys['KeyD']) && player.x < canvas.width - player.size) player.x += player.speed;
+        if ((keys['ArrowUp'] || keys['KeyW']) && player.y > 0) player.y -= player.speed;
+        if ((keys['ArrowDown'] || keys['KeyS']) && player.y < canvas.height - player.size) player.y += player.speed;
+
+        // Giảm HP theo thời gian (đói)
+        hp -= 0.05;
+
+        // Cập nhật kẻ địch
+        enemies.forEach(enemy => {
+            // Đuổi theo người chơi
+            if (enemy.x < player.x) enemy.x += enemy.speed;
+            else enemy.x -= enemy.speed;
+            
+            if (enemy.y < player.y) enemy.y += enemy.speed;
+            else enemy.y -= enemy.speed;
+
+            // Va chạm với người chơi
+            if (rectIntersect(player.x, player.y, player.size, player.size, 
+                              enemy.x, enemy.y, enemy.size, enemy.size)) {
+                hp -= 1;
+                // Đẩy quái ra xa
+                enemy.x += (Math.random() - 0.5) * 100;
+                enemy.y += (Math.random() - 0.5) * 100;
+            }
+        });
+
+        // Kiểm tra ăn vật phẩm
+        foods = foods.filter(food => {
+            if (rectIntersect(player.x, player.y, player.size, player.size, 
+                              food.x, food.y, food.size, food.size)) {
+                hp = Math.min(100, hp + 20);
+                score += 10;
+                setTimeout(() => foods.push(createFood()), 1000); // Tạo thức ăn mới sau 1s
+                return false;
+            }
+            return true;
+        });
+
+        if (hp <= 0) {
+            hp = 0;
+            gameOver = true;
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Vẽ thức ăn
+        foods.forEach(f => {
+            ctx.fillStyle = f.color;
+            ctx.fillRect(f.x, f.y, f.size, f.size);
+        });
+
+        // Vẽ kẻ địch
+        enemies.forEach(e => {
+            ctx.fillStyle = e.color;
+            ctx.fillRect(e.x, e.y, e.size, e.size);
+        });
+
+        // Vẽ người chơi
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.size, player.size);
+
+        // Vẽ giao diện (UI)
+        ctx.fillStyle = "white";
+        ctx.font = "20px Arial";
+        ctx.fillText(`Điểm: ${score}`, 20, 40);
+        
+        // Vẽ thanh HP
+        ctx.fillStyle = "#333";
+        ctx.fillRect(canvas.width - 220, 20, 200, 20);
+        ctx.fillStyle = "red";
+        ctx.fillRect(canvas.width - 220, 20, hp * 2, 20);
+
+        if (gameOver) {
+            ctx.fillStyle = "rgba(0,0,0,0.7)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white";
+            ctx.font = "40px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("GAME OVER - BẠN ĐÃ KIỆT SỨC", canvas.width/2, canvas.height/2);
+            ctx.font = "20px Arial";
+            ctx.fillText("Nhấn F5 để hồi sinh", canvas.width/2, canvas.height/2 + 50);
+        }
+
+        update();
+        requestAnimationFrame(draw);
+    }
+
+    // Hàm kiểm tra va chạm hình chữ nhật
+    function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+        return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+    }
+
+    draw();
+</script>
+</body>
+</html>
